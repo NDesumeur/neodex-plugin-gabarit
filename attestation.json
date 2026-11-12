@@ -1,0 +1,9 @@
+{
+  "pluginId": "neodex.gabarit",
+  "repo": "NDesumeur/neodex-plugin-gabarit",
+  "version": "1.0.0",
+  "sha256": "7db21b5e82ee87e07d424b015442cc9ffea16544e679222156e46906ce2a06d2",
+  "approvedAt": "2026-11-12T12:24:43.322Z",
+  "neobase": ">=4.0.0",
+  "signature": "vk7sdVmLHVmqly49cjTVdQB7terrN5TM5WzxlBC6kHxnpnpE9i6TzK7cC3WOYg+xvTABbN5dh87AklCFvOCWDA=="
+}
