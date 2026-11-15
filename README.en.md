@@ -12,6 +12,7 @@ A pixel art shape game: in a forge, a piece of hot metal falls toward a mould du
 - **↓**: make it fall faster. **Space**: drop it at once.
 - **Finger** or **mouse**: left or right to move, middle to turn, two quick taps in the middle to drop.
 - **P** or **Esc**: pause, **Enter** to resume.
+- **Full screen**: the button of the same name; Escape to leave it.
 
 ## How it works
 

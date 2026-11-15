@@ -12,6 +12,7 @@ Un jeu de formes en pixel art : dans une forge, une pièce de métal chaud tombe
 - **↓** : la faire tomber plus vite. **Espace** : la lâcher d'un coup.
 - **Doigt** ou **souris** : à gauche ou à droite pour déplacer, au milieu pour tourner, deux appuis rapides au milieu pour lâcher.
 - **P** ou **Échap** : pause, **Entrée** pour reprendre.
+- **Plein écran** : le bouton du même nom ; Échap pour en sortir.
 
 ## Comment ça marche
 

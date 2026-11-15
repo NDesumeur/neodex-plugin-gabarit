@@ -1,9 +1,9 @@
 {
   "id": "neodex.gabarit",
   "name": "Gabarit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "NDesumeur",
-  "description": "Jeu de formes : dans une forge, une pièce de métal chaud tombe vers un moule creusé dans le sol. Tourne-la, retourne-la et place-la pour qu'elle le remplisse exactement avant qu'elle ne touche le sol. Des moules de plus en plus grands, des faux moules presque pareils pour te piéger et une chute de plus en plus rapide. Trois ratés permis. Score et record.",
+  "description": "Jeu de formes : dans une forge, une pièce de métal chaud tombe vers un moule creusé dans le sol. Tourne-la, retourne-la et place-la pour qu'elle le remplisse exactement avant qu'elle ne touche le sol. Des moules de plus en plus grands, des faux moules presque pareils pour te piéger et une chute de plus en plus rapide. Trois ratés permis. Score et record. Plein écran.",
   "icon": "icon.png",
   "entry": "index.js",
   "view": "gabarit",

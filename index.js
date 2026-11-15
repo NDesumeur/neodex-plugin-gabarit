@@ -5,13 +5,15 @@ const HTML = `<div class="appWrap wide">
   <div class="gMain"><div class="gameBox"><canvas id="gbCanvas" width="128" height="166" role="img" aria-label="Gabarit"></canvas></div>
     <div class="gSide">
       <div class="sysCard"><b>RECORDS</b><div class="gStats" id="gbStats"></div></div>
-      <div class="row"><button class="btn main" id="gbNew">NOUVELLE PARTIE</button></div>
+      <div class="row"><button class="btn main" id="gbNew">NOUVELLE PARTIE</button><button class="btn" id="gbFs">PLEIN ÉCRAN</button></div>
       <div class="hint">Le moule est la forme creusée dans le sol, bordée de rouge. Tourne et retourne la pièce pour qu'elle ait la même forme, place-la au-dessus et lâche-la : elle doit remplir le moule exactement. Le pointillé montre où elle va tomber. Dès la manche 5, un faux moule presque pareil apparaît à côté : regarde bien. Dès la manche 8, il faut parfois retourner la pièce (Maj). Plus tu places vite, plus tu gagnes, et les pièces réussies d'affilée rapportent davantage. Trois ratés et la forge s'éteint.</div>
     </div></div>
 </div>`;
 const CSS = `.gMain{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
 .gameBox{display:grid;place-items:center;padding:10px;background:#05010b;flex:0 0 auto;position:relative}
 .gameBox canvas{height:min(72vh,720px);width:auto;aspect-ratio:128/166;image-rendering:pixelated;cursor:var(--cp,pointer);touch-action:none}
+.gameBox:fullscreen{padding:0}
+.gameBox:fullscreen canvas{height:min(100vh,calc(100vw * 166 / 128))}
 .gSide{display:flex;flex-direction:column;gap:14px;flex:1;min-width:250px;max-width:420px}
 .gSide .sysCard{display:flex;flex-direction:column}
 .gStats{display:grid;grid-template-columns:1fr auto;gap:4px 14px}
@@ -309,9 +311,10 @@ function gameLoop(st, appKey, update, draw) {
   };
   st.raf = requestAnimationFrame(frame);
 }
+const fitScale = (text, size, w) => { let sc = PXK.scale(size); while (sc > 1 && PXK.layout(text).w * sc > w - 6) sc--; return sc; };  // la plus grande taille qui tient dans la largeur
 function gameText(g, w, lines, y0) {  // lignes centrées en police pixel, sur une bande sombre
   g.fillStyle = 'rgba(11,3,28,.72)'; g.fillRect(0, y0 - 14, w, lines.length * 14 + 14);
-  lines.forEach(([text, color, size], i) => PXK.fill(g, text, w / 2, y0 + i * 14, color, PXK.scale(size), 'center'));
+  lines.forEach(([text, color, size], i) => PXK.fill(g, text, w / 2, y0 + i * 14, color, fitScale(text, size, w), 'center'));
 }
 const px = (g, color, x, y, w = 1, h = 1) => { g.fillStyle = color; g.fillRect(Math.round(x), Math.round(y), w, h); };
 function sprite(g, rows, x, y, pal) { rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const c = pal[r[i]]; if (c) px(g, c, x + i, y + j); } }); }
@@ -423,7 +426,7 @@ function gbDraw() {
   if (gb.anim) for (const [x, y] of gb.anim.cells) g.drawImage(gb.anim.ok ? GB_GOLD : (gb.anim.t >> 2) % 2 ? GB_BAD : GB_HOT, x * C, Y(y));
   else if (gb.mode === 'play' || gb.mode === 'pause') for (const [cx, cy] of gb.piece) g.drawImage(GB_HOT, (gb.px + cx) * C, Y(gb.py + cy));
   for (const s of gb.sparks) px(g, s.t > 12 ? '#fff0b0' : '#ffb04a', s.x, s.y);
-  if (gb.anim) pxFont(g, gb.anim.ok ? (gb.streak > 1 ? 'PILE ! ×' + gb.streak : 'PILE !') : 'RATÉ !', W / 2, HUD + 40, gb.anim.ok ? '#ffd84a' : '#ff4a3a', 12, 'center');
+  if (gb.anim) { const t = gb.anim.ok ? (gb.streak > 1 ? 'PILE ! ×' + gb.streak : 'PILE !') : 'RATÉ !'; pxFont(g, t, W / 2, HUD + 40, gb.anim.ok ? '#ffd84a' : '#ff4a3a', fitScale(t, 12, W) * 8, 'center'); }
   // l'affichage : score, manche, cœurs
   px(g, '#120a0e', 0, 0, W, HUD);
   pxFont(g, String(gb.score), 4, 10, '#ffffff', 8); pxFont(g, 'N° ' + (gb.lvl + 1), W / 2 + 4, 10, '#c8b0b8', 8, 'center');
@@ -460,7 +463,8 @@ document.addEventListener('keyup', e => { if (gb && (e.key === 'ArrowDown' || e.
   cv.onpointerdown = e => { e.preventDefault(); if (!gb || gbStart() || gb.mode !== 'play') return; const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
     if (x < .33) gbTry(gb.piece, -1, 0); else if (x > .67) gbTry(gb.piece, 1, 0); else { if (performance.now() - (gb.tap || 0) < 280) { gbTry(gbRot(gbRot(gbRot(gb.piece))), 0, 0); gbDrop(); } else gbTry(gbRot(gb.piece), 0, 0); gb.tap = performance.now(); } }; }
 $('gbNew').onclick = () => { gbNew(); $('gbNew').blur(); };
-{  // vérification : chaque pièce peut reprendre la forme de son moule (rotations et retournement), une pièce bien placée remplit le moule, une mal placée rate
+$('gbFs').onclick = () => { $('gbFs').blur(); try { if (document.fullscreenElement) document.exitFullscreen(); else $('gbCanvas').parentElement.requestFullscreen?.().catch(() => {}); } catch {} };
+function gbCheck() {  // vérification : chaque pièce peut reprendre la forme de son moule (rotations et retournement), une pièce bien placée remplit le moule, une mal placée rate ; les grands textes tiennent dans la largeur
   const keep = gb, realBest = games.best.gabarit, realStats = {...gbs}; gb = null; gbMute = true; gbNew();
   let shapes = true, fill = true, miss = true;
   for (let i = 0; i < 120; i++) {
@@ -470,10 +474,13 @@ $('gbNew').onclick = () => { gbNew(); $('gbNew').blur(); };
     gb.mode = 'play'; gb.piece = right; gb.px = m.x; gb.py = 0; gbDrop(); if (!gb.anim.ok) fill = false;
     gb.hearts = 3; gb.mode = 'play'; gbLevel(); const m2 = gb.molds.find(x => x.real); gb.piece = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0]]; gb.px = Math.min(GB.COLS - 6, m2.x); gb.py = 0; gbDrop(); if (gb.anim.ok && m2.cells.length !== 6) miss = false;
   }
-  console.assert(shapes && fill && miss, 'gabarit', {shapes, fill, miss});
+  const texts = ['FORGE ÉTEINTE', 'GABARIT', 'PAUSE', 'PILE ! ×12', 'RATÉ !', 'NOUVEAU RECORD !', '12 pièces moulées', 'Record 99999'].every(t => PXK.layout(t).w * fitScale(t, 12, GB.W) <= GB.W - 6);
   if (realBest === undefined) delete games.best.gabarit; else games.best.gabarit = realBest; Object.assign(gbs, realStats);
   gb = keep; gbMute = false;
+  const bad = Object.entries({shapes, fill, miss, texts}).filter(([, v]) => !v).map(([k]) => k); return bad.length ? bad.join(', ') : 'ok';
 }
+{ const c = gbCheck(); console.assert(c === 'ok', 'gabarit', c); }
+$('gbCanvas').__gb = {st: () => gb, check: gbCheck};
 ctx.onOpen(() => {
   if (!gb || !gb.g) { gbNew(); gb.g = $('gbCanvas').getContext('2d'); }
   gameLoop(gb, 'gabarit', gbUpdate, gbDraw); gbInfo();
