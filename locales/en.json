@@ -80,5 +80,7 @@
  "prêt": "ready",
  "← → : placer": "← →: place",
  "← → placer · ↑ tourner · Maj retourner · ↓ accélérer · Espace lâcher · P pause": "← → place · ↑ turn · Shift flip · ↓ speed up · Space drop · P pause",
- "↑ : tourner": "↑: turn"
+ "↑ : tourner": "↑: turn",
+ "12 pièces moulées": "12 moulded pieces",
+ "Record 99999": "Record 99999"
 }
