@@ -64,7 +64,6 @@
  "RATÉ !": "MISSED!",
  "RECORDS": "RECORDS",
  "Record": "Best",
- "Record.": "Best score.",
  "Shift": "Shift",
  "Ua": "Ua",
  "Uc": "Uc",
@@ -82,5 +81,6 @@
  "← → placer · ↑ tourner · Maj retourner · ↓ accélérer · Espace lâcher · P pause": "← → place · ↑ turn · Shift flip · ↓ speed up · Space drop · P pause",
  "↑ : tourner": "↑: turn",
  "12 pièces moulées": "12 moulded pieces",
- "Record 99999": "Record 99999"
+ "Record 99999": "Record 99999",
+ "Rien n'est synchronisé : tes records restent sur cet appareil.": "Nothing is synced: your records stay on this device."
 }
