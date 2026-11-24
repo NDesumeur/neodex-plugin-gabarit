@@ -6,10 +6,12 @@ const HTML = `<div class="appWrap wide">
     <div class="gSide">
       <div class="sysCard"><b>RECORDS</b><div class="gStats" id="gbStats"></div></div>
       <div class="row"><button class="btn main" id="gbNew">NOUVELLE PARTIE</button><button class="btn" id="gbFs">PLEIN ÉCRAN</button></div>
+      <div class="sysCard"><b>COMMANDES</b><div class="hint">Un client commande une série d'objets (clés, fers à cheval, couronnes…) : forge-les tous avant la fin du temps. Une pièce ratée coûte 10 secondes. Trois étoiles s'il reste plus de la moitié du temps ; chaque commande livrée ouvre la suivante.</div><div class="gbGrid" id="gbGrid"></div></div>
       <div class="hint">Le moule est la forme creusée dans le sol, bordée de rouge. Tourne et retourne la pièce pour qu'elle ait la même forme, place-la au-dessus et lâche-la : elle doit remplir le moule exactement. Le pointillé montre où elle va tomber. Dès la manche 5, un faux moule presque pareil apparaît à côté : regarde bien. Dès la manche 8, il faut parfois retourner la pièce (Maj). Plus tu places vite, plus tu gagnes, et les pièces réussies d'affilée rapportent davantage. Trois ratés et la forge s'éteint.</div>
     </div></div>
 </div>`;
-const CSS = `.gMain{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+const CSS = `.gbGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.gbGrid .btn{padding:6px 2px;font-size:12px}
+.gMain{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
 .gameBox{display:grid;place-items:center;padding:10px;background:#05010b;flex:0 0 auto;position:relative}
 .gameBox canvas{height:min(72vh,720px);width:auto;aspect-ratio:128/166;image-rendering:pixelated;cursor:var(--cp,pointer);touch-action:none}
 .gameBox:fullscreen{padding:0}
@@ -325,7 +327,13 @@ const pxFont = (g, text, x, y, color, size = 8, align = 'left') => { const s = P
    et on la place pour qu'elle remplisse le moule exactement. Raté = un cœur de moins (3). Grille de 8 px ---------- */
 const GB = {C: 8, COLS: 16, ROWS: 19, HUD: 14, GROUND: 13};
 GB.W = GB.COLS * GB.C; GB.H = GB.HUD + GB.ROWS * GB.C;
-const gbs = gstore('gabarit', {games: 0, fits: 0, perfect: 0});
+const gbs = gstore('gabarit', {games: 0, fits: 0, perfect: 0}); gbs.orders ??= {};
+// les objets des commandes : leur moule, colonne par colonne (profondeur de chaque colonne)
+const GB_ITEMS = [['Clou', [4]], ['Clé', [3, 1, 2]], ['Fer à cheval', [3, 1, 3]], ['Marteau', [1, 3, 1]], ['Hache', [3, 2, 1]], ['Bougeoir', [1, 4, 1]], ['Couronne', [2, 1, 2, 1, 2]],
+  ['Peigne', [3, 1, 3, 1, 3]], ['Enclume', [2, 3, 3, 2]], ['Pelle', [1, 1, 4, 1, 1]], ['Épée', [1, 4, 1, 1]], ['Cloche', [2, 3, 4, 3, 2]]];
+// les commandes : nombre d'objets, temps (s), objets possibles (les premiers du catalogue), faux moules ou non
+const GB_ORDERS = [{n: 4, s: 70, pool: 4}, {n: 5, s: 80, pool: 6}, {n: 6, s: 90, pool: 8, fake: true}, {n: 7, s: 95, pool: 10, fake: true}, {n: 8, s: 100, pool: 12, fake: true}, {n: 10, s: 115, pool: 12, fake: true}];
+const gbCells = depths => gbNorm(depths.flatMap((d, x) => Array.from({length: d}, (_, y) => [x, y])));
 let gb = null, gbac = null, gbMute = false;
 const gbNorm = cells => { const mx = Math.min(...cells.map(c => c[0])), my = Math.min(...cells.map(c => c[1])); return cells.map(([x, y]) => [x - mx, y - my]).sort((a, b) => a[1] - b[1] || a[0] - b[0]); };
 const gbRot = cells => gbNorm(cells.map(([x, y]) => [-y, x]));
@@ -358,22 +366,26 @@ function gbBeep(f, d, type = 'square', slide = 0, vol = .04) { if (gbMute) retur
 const renew = (old, o) => { if (!old) return o; for (const k of Object.keys(old)) if (k !== 'raf') delete old[k]; return Object.assign(old, o); };
 function gbNew() {
   const g = gb?.g;
-  gb = renew(gb, {g, mode: 'ready', tick: 0, seen: 0, lvl: 0, score: 0, hearts: 3, fits: 0, streak: 0, dead: 0, record: false, rnd: seeded(Date.now() % 1e9), anim: null, sparks: []});
+  gb = renew(gb, {g, order: null, name: '', mode: 'ready', tick: 0, seen: 0, lvl: 0, score: 0, hearts: 3, fits: 0, streak: 0, dead: 0, record: false, rnd: seeded(Date.now() % 1e9), anim: null, sparks: []});
   gbLevel(); gbInfo();
 }
 // une manche : le moule (et parfois un faux moule presque pareil), la pièce tournée et retournée au hasard, en haut au milieu
+function gbOrder(k) {  // une commande : la même forge, mais une série d'objets nommés et un chrono au lieu des cœurs
+  gbNew(); const O = GB_ORDERS[k]; gb.order = {k, need: O.n, made: 0, time: O.s * 60, max: O.s * 60, stars: 0}; gb.lvl = 0; gbLevel(); gbGrid();
+}
 function gbLevel() {
-  const r = gb.rnd, mold = gbMold(r, gb.lvl), mw = Math.max(...mold.map(c => c[0])) + 1;
+  const r = gb.rnd, O = gb.order && GB_ORDERS[gb.order.k], it = O && GB_ITEMS[Math.floor(r() * O.pool)], mold = it ? gbCells(it[1]) : gbMold(r, gb.lvl), mw = Math.max(...mold.map(c => c[0])) + 1;
+  gb.name = it ? it[0] : '';
   const mx = 1 + Math.floor(r() * (GB.COLS - mw - 2));
   gb.molds = [{cells: mold, x: mx, real: true}];
-  if (gb.lvl >= 4) {  // le leurre : même largeur, une colonne de profondeur différente, ailleurs
+  if (O ? O.fake : gb.lvl >= 4) {  // le leurre : même largeur, une colonne de profondeur différente, ailleurs
     const fake = mold.map(c => [...c]), col = Math.floor(r() * mw), deep = fake.filter(c => c[0] === col).length;
     const out = deep > 1 && r() < .5 ? fake.filter(c => !(c[0] === col && c[1] === deep - 1)) : (deep < 4 ? [...fake, [col, deep]] : fake.filter(c => !(c[0] === col && c[1] === deep - 1)));
     const fx = mx + mw + 2 + mw <= GB.COLS - 1 ? mx + mw + 2 : mx - mw - 2;
     if (fx >= 1 && gbKey(out) !== gbKey(mold)) gb.molds.push({cells: gbNorm(out), x: fx, real: false});
   }
   let piece = mold; const turns = 1 + Math.floor(r() * 3); for (let i = 0; i < turns; i++) piece = gbRot(piece);
-  if (gb.lvl >= 7 && r() < .5) piece = gbFlip(piece);
+  if ((O ? O.fake : gb.lvl >= 7) && r() < .5) piece = gbFlip(piece);
   gb.piece = piece; gb.px = Math.floor((GB.COLS - (Math.max(...piece.map(c => c[0])) + 1)) / 2); gb.py = 0;
   gb.fall = 0; gb.time = 0; gb.speed = Math.max(5, 30 - gb.lvl * 2); gb.soft = false;
 }
@@ -392,7 +404,10 @@ function gbLand() {
     const pts = (50 * n + bonus) * (1 + Math.min(4, gb.streak) * .25);
     gb.score += Math.round(pts); gb.fits++; gb.streak++; gbBeep(660, .1); if (!gbMute) setTimeout(() => gbBeep(990, .2), 90);
     for (const [x, y] of gb.anim.cells) for (let k = 0; k < 2; k++) gb.sparks.push({x: x * GB.C + 4, y: GB.HUD + y * GB.C, vx: (gb.rnd() - .5) * 1.5, vy: -1 - gb.rnd() * 1.5, t: 24});
-  } else { gb.hearts--; gb.streak = 0; gbBeep(140, .4, 'sawtooth', 60, .07); }
+    if (gb.order && ++gb.order.made >= gb.order.need) { const k = gb.order.time / gb.order.max; gb.order.stars = k > .5 ? 3 : k > .25 ? 2 : 1;
+      if (gb.order.stars > (gbs.orders[gb.order.k] || 0)) gbs.orders = {...gbs.orders, [gb.order.k]: gb.order.stars}; saveGames(); gbGrid(); }
+  } else if (gb.order) { gb.order.time = Math.max(1, gb.order.time - 600); gb.streak = 0; gbBeep(140, .4, 'sawtooth', 60, .07); }  // en commande, une pièce ratée coûte 10 s
+  else { gb.hearts--; gb.streak = 0; gbBeep(140, .4, 'sawtooth', 60, .07); }
   gb.mode = 'anim';
 }
 function gbEnd() {
@@ -401,13 +416,21 @@ function gbEnd() {
 }
 function gbUpdate() {
   for (const s of gb.sparks) { s.x += s.vx; s.y += s.vy; s.vy += .08; s.t--; } gb.sparks = gb.sparks.filter(s => s.t > 0);
-  if (gb.mode === 'over') { gb.dead++; return; }
-  if (gb.mode === 'anim') { if (--gb.anim.t <= 0) { gb.anim = null; if (gb.hearts <= 0) return gbEnd(); gb.lvl++; gbLevel(); gb.mode = 'play'; } return; }
+  if (gb.mode === 'over' || gb.mode === 'won') { gb.dead++; return; }
+  if (gb.mode === 'anim') { if (--gb.anim.t <= 0) { gb.anim = null; if (gb.order && gb.order.made >= gb.order.need) { gb.mode = 'won'; gb.dead = 0; [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => gbBeep(f, .14), i * 100)); return; } if (gb.hearts <= 0) return gbEnd(); gb.lvl++; gbLevel(); gb.mode = 'play'; } return; }
   if (gb.mode !== 'play') return;
   gb.time += 1 / 60;
+  if (gb.order && --gb.order.time <= 0) { gb.mode = 'over'; gb.dead = 0; gb.order.late = true; gbBeep(140, .6, 'sawtooth', 50, .07); return; }
   if (++gb.fall >= (gb.soft ? 2 : gb.speed)) { gb.fall = 0; if (gbFits(gb.piece, gb.px, gb.py + 1)) gb.py++; else gbLand(); }
 }
 function gbDrop() { if (gb.mode !== 'play') return; while (gbFits(gb.piece, gb.px, gb.py + 1)) gb.py++; gbBeep(200, .08, 'triangle', 90, .05); gbLand(); }
+function gbBlocks(g, cells, img, top, side) {  // des blocs en relief isométrique : dessus (vers le haut-droite) et côté droit là où rien ne les cache, puis la face avant
+  const C = GB.C, has = (x, y) => cells.some(c => c[0] === x && c[1] === y), Y = y => GB.HUD + y * C;
+  for (const [x, y] of cells) { const X = x * C, YY = Y(y);
+    if (!has(x, y - 1)) for (let i = 1; i <= 3; i++) { px(g, '#1a0e0a', X + i, YY - i, C, 1); px(g, i === 3 ? '#1a0e0a' : top, X + i + 1, YY - i, C - 2 + (has(x + 1, y) ? 2 : 0), 1); }
+    if (!has(x + 1, y)) for (let i = 1; i <= 3; i++) { px(g, '#1a0e0a', X + C - 1 + i, YY - i, 1, C); px(g, i === 3 ? '#1a0e0a' : side, X + C - 1 + i, YY - i + 1, 1, C - 2 + (has(x, y + 1) ? 2 : 0)); } }
+  for (const [x, y] of cells) g.drawImage(img, x * C, Y(y));
+}
 function gbDraw() {
   const g = gb.g, {C, W, HUD, GROUND} = GB, Y = y => HUD + y * C;
   for (; gb.seen < gb.tick; gb.seen++) if (gb.mode !== 'play') gbUpdate();
@@ -423,25 +446,34 @@ function gbDraw() {
   if (gb.mode === 'play') { let gy = gb.py; while (gbFits(gb.piece, gb.px, gy + 1)) gy++;
     for (const [cx, cy] of gb.piece) { const x = (gb.px + cx) * C, y = Y(gy + cy); for (let i = 0; i < C; i += 2) { px(g, '#ffb04a', x + i, y, 1, 1); px(g, '#ffb04a', x + i, y + C - 1, 1, 1); px(g, '#ffb04a', x, y + i, 1, 1); px(g, '#ffb04a', x + C - 1, y + i, 1, 1); } } }
   // la pièce, ou le résultat de la manche
-  if (gb.anim) for (const [x, y] of gb.anim.cells) g.drawImage(gb.anim.ok ? GB_GOLD : (gb.anim.t >> 2) % 2 ? GB_BAD : GB_HOT, x * C, Y(y));
-  else if (gb.mode === 'play' || gb.mode === 'pause') for (const [cx, cy] of gb.piece) g.drawImage(GB_HOT, (gb.px + cx) * C, Y(gb.py + cy));
+  if (gb.anim) { const im = gb.anim.ok ? GB_GOLD : (gb.anim.t >> 2) % 2 ? GB_BAD : GB_HOT; gbBlocks(g, gb.anim.cells, im, gb.anim.ok ? '#fff09a' : im === GB_BAD ? '#8a7a7a' : '#ffb04a', gb.anim.ok ? '#a8781a' : im === GB_BAD ? '#3a2e2e' : '#a8381a'); }
+  else if (gb.mode === 'play' || gb.mode === 'pause') gbBlocks(g, gb.piece.map(([cx, cy]) => [gb.px + cx, gb.py + cy]), GB_HOT, '#ffb04a', '#a8381a');
   for (const s of gb.sparks) px(g, s.t > 12 ? '#fff0b0' : '#ffb04a', s.x, s.y);
   if (gb.anim) { const t = gb.anim.ok ? (gb.streak > 1 ? 'PILE ! ×' + gb.streak : 'PILE !') : 'RATÉ !'; pxFont(g, t, W / 2, HUD + 40, gb.anim.ok ? '#ffd84a' : '#ff4a3a', fitScale(t, 12, W) * 8, 'center'); }
   // l'affichage : score, manche, cœurs
   px(g, '#120a0e', 0, 0, W, HUD);
-  pxFont(g, String(gb.score), 4, 10, '#ffffff', 8); pxFont(g, 'N° ' + (gb.lvl + 1), W / 2 + 4, 10, '#c8b0b8', 8, 'center');
-  for (let i = 0; i < 3; i++) { const x = W - 30 + i * 9, c = i < gb.hearts ? '#ff4a3a' : '#3a2a32'; px(g, c, x, 4, 3, 2); px(g, c, x + 4, 4, 3, 2); px(g, c, x, 5, 7, 2); px(g, c, x + 1, 7, 5, 1); px(g, c, x + 2, 8, 3, 1); px(g, c, x + 3, 9, 1, 1); }
+  if (gb.order) { const s = Math.ceil(gb.order.time / 60); pxFont(g, gb.order.made + '/' + gb.order.need, 4, 10, '#ffd84a', 8); pxFont(g, Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), W - 4, 10, s <= 10 && (gb.tick >> 3) % 2 ? '#ff4a3a' : '#ffffff', 8, 'right'); }
+  else pxFont(g, String(gb.score), 4, 10, '#ffffff', 8);
+  if (!gb.order) pxFont(g, 'N° ' + (gb.lvl + 1), W / 2 + 4, 10, '#c8b0b8', 8, 'center');
+  if (gb.order) pxFont(g, gb.name && (gb.mode === 'play' || gb.mode === 'anim' || gb.mode === 'pause') ? gb.name : 'COMMANDE ' + (gb.order.k + 1), W / 2, 10, gb.name ? '#ffb04a' : '#c8b0b8', 6, 'center');
+  else for (let i = 0; i < 3; i++) { const x = W - 30 + i * 9, c = i < gb.hearts ? '#ff4a3a' : '#3a2a32'; px(g, c, x, 4, 3, 2); px(g, c, x + 4, 4, 3, 2); px(g, c, x, 5, 7, 2); px(g, c, x + 1, 7, 5, 1); px(g, c, x + 2, 8, 3, 1); px(g, c, x + 3, 9, 1, 1); }
   if (gb.mode === 'ready') gameText(g, W, [['GABARIT', '#ffb04a', 16], ['← → : placer', '#ffffff'], ['↑ : tourner', '#ffffff'], ['Maj : retourner', '#ffffff'], ['Espace : lâcher', '#ffffff'], ['Record ' + (games.best.gabarit || 0), '#ffd84a']], 46);
   if (gb.mode === 'pause') gameText(g, W, [['PAUSE', '#ffffff', 12], ['Entrée : reprendre', '#b8b0c8']], 60);
-  if (gb.mode === 'over' && gb.dead > 30) gameText(g, W, [['FORGE ÉTEINTE', '#ff8a3a', 12], [gb.fits + (gb.fits > 1 ? ' pièces moulées' : ' pièce moulée'), '#ffffff'], [gb.score + ' points', '#ffffff'], [gb.record ? 'NOUVEAU RECORD !' : 'Record ' + (games.best.gabarit || 0), '#ffd84a'], [gb.dead > 60 ? 'Entrée : rejouer' : '', '#b8b0c8']], 50);
+  if (gb.mode === 'won' && gb.dead > 20) gameText(g, W, [['COMMANDE LIVRÉE !', '#7ee07a', 10], ['*'.repeat(gb.order.stars) + ' · ' + gb.order.need + ' objets', '#ffd84a'], [gb.dead > 60 ? (gb.order.k + 1 < GB_ORDERS.length ? 'Entrée : la suite' : 'Entrée : partie libre') : '', '#b8b0c8']], 50);
+  if (gb.mode === 'over' && gb.order?.late && gb.dead > 30) gameText(g, W, [['TROP TARD !', '#ff8a3a', 12], [gb.order.made + ' / ' + gb.order.need + ' objets', '#ffffff'], [gb.dead > 60 ? 'Entrée : recommencer' : '', '#b8b0c8']], 50);
+  else if (gb.mode === 'over' && gb.dead > 30) gameText(g, W, [['FORGE ÉTEINTE', '#ff8a3a', 12], [gb.fits + (gb.fits > 1 ? ' pièces moulées' : ' pièce moulée'), '#ffffff'], [gb.score + ' points', '#ffffff'], [gb.record ? 'NOUVEAU RECORD !' : 'Record ' + (games.best.gabarit || 0), '#ffd84a'], [gb.dead > 60 ? 'Entrée : rejouer' : '', '#b8b0c8']], 50);
   if (gb.tick % 30 === 0) g.canvas.setAttribute('aria-label', 'Gabarit : ' + (gb.mode === 'play' || gb.mode === 'anim' ? 'manche ' + (gb.lvl + 1) + ', ' + gb.score + ' points, ' + gb.hearts + ' cœurs, ' + gb.fits + ' pièces moulées' : gb.mode === 'over' ? 'partie finie, ' + gb.score + ' points' : gb.mode === 'pause' ? 'pause' : 'prêt'));
 }
+function gbGrid() {  // les commandes : chacune s'ouvre quand la précédente est livrée
+  $('gbGrid').replaceChildren(...GB_ORDERS.map((O, i) => { const s = gbs.orders[i] || 0, b = el('button', 'btn' + (gb?.order?.k === i ? ' main' : ''), (i + 1) + (s ? ' ' + '*'.repeat(s) : '')); b.title = O.n + ' objets en ' + O.s + ' s'; b.disabled = i > 0 && !gbs.orders[i - 1]; b.onclick = () => { gbOrder(i); b.blur(); }; return b; }));
+}
 function gbInfo() {
-  $('gbStats').replaceChildren(...[['Meilleur score', games.best.gabarit || 0], ['Parties', gbs.games], ['Pièces moulées', gbs.fits]].flatMap(([a, b]) => [el('span', '', a), el('b', '', String(b))]));
+  $('gbStats').replaceChildren(...[['Meilleur score', games.best.gabarit || 0], ['Parties', gbs.games], ['Pièces moulées', gbs.fits], ['Commandes', Object.keys(gbs.orders).length + ' / ' + GB_ORDERS.length + ' · ' + Object.values(gbs.orders).reduce((a, b) => a + b, 0) + ' étoiles']].flatMap(([a, b]) => [el('span', '', a), el('b', '', String(b))]));
 }
 function gbStart() {
   if (gb.mode === 'ready' || gb.mode === 'pause') { gb.mode = 'play'; return true; }
-  if (gb.mode === 'over' && gb.dead > 60) { gbNew(); gb.mode = 'play'; return true; }
+  if (gb.mode === 'over' && gb.dead > 60) { if (gb.order) gbOrder(gb.order.k); else gbNew(); gb.mode = 'play'; return true; }
+  if (gb.mode === 'won' && gb.dead > 60) { if (gb.order.k + 1 < GB_ORDERS.length) gbOrder(gb.order.k + 1); else gbNew(); gbGrid(); gb.mode = 'play'; return true; }
   return false;
 }
 document.addEventListener('keydown', e => {
@@ -462,7 +494,7 @@ document.addEventListener('keyup', e => { if (gb && (e.key === 'ArrowDown' || e.
 { const cv = $('gbCanvas');
   cv.onpointerdown = e => { e.preventDefault(); if (!gb || gbStart() || gb.mode !== 'play') return; const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
     if (x < .33) gbTry(gb.piece, -1, 0); else if (x > .67) gbTry(gb.piece, 1, 0); else { if (performance.now() - (gb.tap || 0) < 280) { gbTry(gbRot(gbRot(gbRot(gb.piece))), 0, 0); gbDrop(); } else gbTry(gbRot(gb.piece), 0, 0); gb.tap = performance.now(); } }; }
-$('gbNew').onclick = () => { gbNew(); $('gbNew').blur(); };
+$('gbNew').onclick = () => { gbNew(); gbGrid(); $('gbNew').blur(); };
 $('gbFs').onclick = () => { $('gbFs').blur(); try { if (document.fullscreenElement) document.exitFullscreen(); else $('gbCanvas').parentElement.requestFullscreen?.().catch(() => {}); } catch {} };
 function gbCheck() {  // vérification : chaque pièce peut reprendre la forme de son moule (rotations et retournement), une pièce bien placée remplit le moule, une mal placée rate ; les grands textes tiennent dans la largeur
   const keep = gb, realBest = games.best.gabarit, realStats = {...gbs}; gb = null; gbMute = true; gbNew();
@@ -474,15 +506,22 @@ function gbCheck() {  // vérification : chaque pièce peut reprendre la forme d
     gb.mode = 'play'; gb.piece = right; gb.px = m.x; gb.py = 0; gbDrop(); if (!gb.anim.ok) fill = false;
     gb.hearts = 3; gb.mode = 'play'; gbLevel(); const m2 = gb.molds.find(x => x.real); gb.piece = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0]]; gb.px = Math.min(GB.COLS - 6, m2.x); gb.py = 0; gbDrop(); if (gb.anim.ok && m2.cells.length !== 6) miss = false;
   }
-  const texts = ['FORGE ÉTEINTE', 'GABARIT', 'PAUSE', 'PILE ! ×12', 'RATÉ !', 'NOUVEAU RECORD !', '12 pièces moulées', 'Record 99999'].every(t => PXK.layout(t).w * fitScale(t, 12, GB.W) <= GB.W - 6);
+  let items = GB_ITEMS.every(([, d]) => { const c = gbCells(d); return c.length >= 4 && d.length <= GB.COLS - 3 && d.every(v => v >= 1 && v <= 6); });
+  const ko = {...gbs.orders}, place = () => { const m = gb.molds.find(x => x.real); const all = []; let p = gb.piece; for (let k = 0; k < 4; k++) { all.push(p, gbFlip(p)); p = gbRot(p); } gb.piece = all.find(c => gbKey(c) === gbKey(m.cells)); gb.px = m.x; gb.py = 0; gbDrop(); };
+  gbOrder(0); gb.mode = 'play'; for (let i = 0; i < 4; i++) { if (!GB_ITEMS.some(([n]) => n === gb.name)) items = false; place(); if (!gb.anim.ok) fill = false; gb.anim.t = 1; gbUpdate(); }
+  const order = gb.mode === 'won' && gb.order.stars === 3 && gbs.orders[0] === 3;
+  gbOrder(1); gb.mode = 'play'; const t0 = gb.order.time; gb.piece = [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0]]; gb.px = 0; gbDrop(); const late = gb.order.time === t0 - 600 && gb.hearts === 3;
+  gb.anim.t = 1; gbUpdate(); gb.order.time = 1; gbUpdate(); const out = gb.mode === 'over' && gb.order.late;
+  gbs.orders = ko;
+  const texts = ['FORGE ÉTEINTE', 'COMMANDE LIVRÉE !', 'TROP TARD !', 'Fer à cheval', 'GABARIT', 'PAUSE', 'PILE ! ×12', 'RATÉ !', 'NOUVEAU RECORD !', '12 pièces moulées', 'Record 99999'].every(t => PXK.layout(t).w * fitScale(t, 12, GB.W) <= GB.W - 6);
   if (realBest === undefined) delete games.best.gabarit; else games.best.gabarit = realBest; Object.assign(gbs, realStats);
   gb = keep; gbMute = false;
-  const bad = Object.entries({shapes, fill, miss, texts}).filter(([, v]) => !v).map(([k]) => k); return bad.length ? bad.join(', ') : 'ok';
+  const bad = Object.entries({shapes, fill, miss, texts, items, order, late, out}).filter(([, v]) => !v).map(([k]) => k); return bad.length ? bad.join(', ') : 'ok';
 }
 { const c = gbCheck(); console.assert(c === 'ok', 'gabarit', c); }
-$('gbCanvas').__gb = {st: () => gb, check: gbCheck};
+$('gbCanvas').__gb = {st: () => gb, check: gbCheck, order: gbOrder, flip: gbFlip, rot: gbRot, key: gbKey, drop: gbDrop, step: gbUpdate};
 ctx.onOpen(() => {
-  if (!gb || !gb.g) { gbNew(); gb.g = $('gbCanvas').getContext('2d'); }
+  if (!gb || !gb.g) { gbNew(); gb.g = $('gbCanvas').getContext('2d'); } gbGrid();
   gameLoop(gb, 'gabarit', gbUpdate, gbDraw); gbInfo();
 });
 }

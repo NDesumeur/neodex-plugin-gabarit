@@ -4,6 +4,12 @@ Un jeu de formes en pixel art : dans une forge, une pièce de métal chaud tombe
 
 *English version: [README.en.md](README.en.md)*
 
+## Commandes de clients et pièces en relief (nouveau en 1.2.0)
+
+- **Six commandes** dans le panneau : un client veut une série d'objets nommés (clou, clé, fer à cheval, marteau, couronne, épée, cloche…), de 4 à 10 objets, avec un chrono au lieu des cœurs.
+- Une pièce ratée coûte **10 secondes**. Trois étoiles s'il reste plus de la moitié du temps ; chaque commande livrée ouvre la suivante. Dès la troisième, des faux moules et des pièces retournées.
+- Les pièces brûlantes sont dessinées **en relief** (dessus et côté), dorées quand elles remplissent le moule.
+
 ## Commandes
 
 - **← →** (ou **Q D**) : déplacer la pièce.

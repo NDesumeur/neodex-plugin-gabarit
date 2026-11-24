@@ -4,6 +4,12 @@ A pixel art shape game: in a forge, a piece of hot metal falls toward a mould du
 
 *Version française : [README.md](README.md)*
 
+## Customer orders and pieces in relief (new in 1.2.0)
+
+- **Six orders** in the side panel: a customer wants a series of named items (nail, key, horseshoe, hammer, crown, sword, bell…), from 4 to 10 items, with a timer instead of hearts.
+- A missed piece costs **10 seconds**. Three stars if more than half the time is left; each delivered order unlocks the next one. From the third one on, decoy molds and flipped pieces.
+- The red-hot pieces are drawn **in relief** (top and side), golden when they fill the mold.
+
 ## Controls
 
 - **← →** (or **A D**): move the piece.
