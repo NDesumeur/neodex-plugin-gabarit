@@ -1,7 +1,7 @@
 {
   "id": "neodex.gabarit",
   "name": "Gabarit",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "NDesumeur",
   "description": "Jeu de formes : dans une forge, une pièce de métal chaud tombe vers un moule creusé dans le sol. Tourne-la, retourne-la et place-la pour qu'elle le remplisse exactement avant qu'elle ne touche le sol. Des moules de plus en plus grands, des faux moules presque pareils pour te piéger et une chute de plus en plus rapide. Trois ratés permis. Score et record. Plein écran. Six commandes de clients à forger contre la montre, et des pièces en relief.",
   "icon": "icon.png",
@@ -22,5 +22,46 @@
   "sdk": "2.1.0",
   "permissions": [
     "storage"
+  ],
+  "succes": [
+    {
+      "id": "premier",
+      "nom": "Bien moulé",
+      "texte": "Finir une première partie"
+    },
+    {
+      "id": "cent",
+      "nom": "Forgeron",
+      "texte": "Remplir 100 moules en tout"
+    },
+    {
+      "id": "mille",
+      "nom": "Maître de forge",
+      "texte": "Remplir 1 000 moules en tout"
+    },
+    {
+      "id": "commande",
+      "nom": "Première commande",
+      "texte": "Livrer une commande"
+    },
+    {
+      "id": "commandes",
+      "nom": "Carnet rempli",
+      "texte": "Livrer toutes les commandes"
+    },
+    {
+      "id": "etoiles",
+      "nom": "Travail d'orfèvre",
+      "texte": "Livrer toutes les commandes avec 3 étoiles",
+      "cache": true
+    }
+  ],
+  "records": [
+    {
+      "id": "score",
+      "nom": "Meilleur score",
+      "sens": "haut",
+      "format": "nombre"
+    }
   ]
 }

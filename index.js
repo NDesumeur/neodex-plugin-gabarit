@@ -301,6 +301,9 @@ export default async function (ctx) {
   const best = (k, v) => { const b = games.best[k]; if (v > (b ?? 0)) {  // un score nul n'est jamais un record
     games.best[k] = v; saveGames(); return true; } return false; };
   const gstore = (k, init) => (games[k] ??= init);
+  // les trophées de NeoDex (3.4.8 et plus) : succès et records déclarés dans plugin.json ; sur un NeoDex plus ancien, rien ne se passe
+  const trophy = id => { ctx.games?.unlock(id).catch(() => {}); };
+  const trophyRecord = (id, v) => { if (v != null && Number.isFinite(+v)) ctx.games?.record(id, +v).catch(() => {}); };
 function gameLoop(st, appKey, update, draw) {
   cancelAnimationFrame(st.raf);
   const STEP = 1000 / 60; let acc = 0, last = performance.now();
@@ -468,6 +471,7 @@ function gbGrid() {  // les commandes : chacune s'ouvre quand la précédente es
   $('gbGrid').replaceChildren(...GB_ORDERS.map((O, i) => { const s = gbs.orders[i] || 0, b = el('button', 'btn' + (gb?.order?.k === i ? ' main' : ''), (i + 1) + (s ? ' ' + '*'.repeat(s) : '')); b.title = O.n + ' objets en ' + O.s + ' s'; b.disabled = i > 0 && !gbs.orders[i - 1]; b.onclick = () => { gbOrder(i); b.blur(); }; return b; }));
 }
 function gbInfo() {
+  setTimeout(gbTrophies);
   $('gbStats').replaceChildren(...[['Meilleur score', games.best.gabarit || 0], ['Parties', gbs.games], ['Pièces moulées', gbs.fits], ['Commandes', Object.keys(gbs.orders).length + ' / ' + GB_ORDERS.length + ' · ' + Object.values(gbs.orders).reduce((a, b) => a + b, 0) + ' étoiles']].flatMap(([a, b]) => [el('span', '', a), el('b', '', String(b))]));
 }
 function gbStart() {
@@ -520,6 +524,13 @@ function gbCheck() {  // vérification : chaque pièce peut reprendre la forme d
 }
 { const c = gbCheck(); console.assert(c === 'ok', 'gabarit', c); }
 $('gbCanvas').__gb = {st: () => gb, check: gbCheck, order: gbOrder, flip: gbFlip, rot: gbRot, key: gbKey, drop: gbDrop, step: gbUpdate};
+// les trophées, tirés des statistiques et des records gardés (aussi à l'ouverture : ce qui a été fait avant compte)
+function gbTrophies() {
+  const o = GB_ORDERS.map((_, i) => gbs.orders[i] || 0), sig = [gbs.games, gbs.fits, o.join(''), games.best.gabarit].join(); if (sig === gbTrophies.sig) return; gbTrophies.sig = sig;
+  trophyRecord('score', games.best.gabarit || null);
+  if (gbs.games >= 1) trophy('premier'); if (gbs.fits >= 100) trophy('cent'); if (gbs.fits >= 1000) trophy('mille');
+  if (o.some(x => x > 0)) trophy('commande'); if (o.every(x => x > 0)) trophy('commandes'); if (o.every(x => x >= 3)) trophy('etoiles');
+}
 ctx.onOpen(() => {
   if (!gb || !gb.g) { gbNew(); gb.g = $('gbCanvas').getContext('2d'); } gbGrid();
   gameLoop(gb, 'gabarit', gbUpdate, gbDraw); gbInfo();
